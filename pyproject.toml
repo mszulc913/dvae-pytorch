@@ -1,3 +1,6 @@
+[project]
+requires-python = ">=3.9"
+
 [tool.ruff]
 select = [
     "E", "F", "W", "D", "I", "N",
@@ -10,8 +13,11 @@ select = [
     "TRY", "NPY", "RUF"
 ]
 ignore = [
-    "D104", # Missing docstring in public package,
+    "D104", # Missing docstring in public package
     "D100", # Missing docstring in public module
+    "ANN101", # Missing type annotation for function argument 'self'
+    "ANN204", # Missing return type annotation for special method
+    "TRY003", # Avoid specifying long messages outside the exception class
 ]
 unfixable = []
 exclude = [
@@ -37,7 +43,7 @@ exclude = [
     "venv",
 ]
 
-line-length = 88
+line-length = 100
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 target-version = "py310"
 
