@@ -1,7 +1,7 @@
 import torch
 from torch.nn.functional import gumbel_softmax
 
-from open_layout_lm.models.layers import ResidualBlock
+from dvae_pytorch.models.layers import ResidualBlock
 
 
 class DVAE(torch.nn.Module):
@@ -9,12 +9,14 @@ class DVAE(torch.nn.Module):
 
     TODO: input image normalization
     TODO: bottleneck style encoder (like in the original DALL-E)
+    TODO: reinmax
     Based on: https://github.com/lucidrains/DALLE-pytorch/blob/main/dalle_pytorch/dalle_pytorch.py
 
     References:
     (1) Zero-Shot Text-to-Image Generation
     (2) Neural Discrete Representation Learning
     """
+
     def __init__(
         self,
         *,
@@ -42,47 +44,61 @@ class DVAE(torch.nn.Module):
         self.decoder = decoder
         self.temperature = temperature
         self.codebook = torch.nn.Embedding(codebook_size, codebook_vector_dim)
+        self.codebook_size = codebook_size
+        self.codebook_vector_dim = codebook_vector_dim
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, temperature: float | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Encode the input tensor.
 
         This function is an alias of `self.encode`.
 
         Args:
-            x: The tensor to be encoded. It should be of shape `(batch, ..., self.num_tokens)`.
-            `"..."` could mean any number of dimensions the encoder and decoder support
-            (for example width and height dimensions for 2D images).
+            x: The tensor to be encoded. It should be of shape `(batch, width, height,
+            self.codebook_size)`.
+            temperature: The temperature parameter for Gumbel Softmax sampling.
 
         Returns:
-            The input encoded with the encoder. The resulting encoding is a "soft encoding",
-            meaning that it is an output of a Gumbel-Softmax function, not a set of
-            exact codebook vectors.
+            Tuple containing:
+                - The input encoded with the encoder. The resulting encoding is a "soft encoding",
+                meaning that it is an output of a Gumbel-Softmax function, not a set of
+                exact codebook vectors. The shape of the output is
+                `(batch, width, height, self.codebook_vector_dim)`
+                - Raw output from the encoder (logits) of shape:
+                `(batch, width, height, self.codebook_size)`
         """
-        return self.encode(x)
+        return self.encode(x, temperature=temperature)
 
-    def encode(self, x: torch.Tensor) -> torch.Tensor:
+    def encode(
+        self, x: torch.Tensor, *, hard: bool = False, temperature: float | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Encode the input tensor.
-
-        This function is an alias of `self.encode`.
 
         Args:
             x: The tensor to be encoded. It should be of shape
             `(batch, width, height, self.codebook_size)`.
+            hard: Whether to use Gumbel Softmax relaxation.
+            temperature: The temperature parameter for Gumbel Softmax sampling.
 
         Returns:
-            The input encoded with the encoder. The resulting encoding is a "soft encoding",
+            Tuple containing:
+            - The input encoded with the encoder. The resulting encoding is a "soft encoding",
             meaning that it is an output of a Gumbel-Softmax function, not a set of
-            exact codebook vectors. The shape of the output is
+            exact codebook vectors. It has the shape of:
             `(batch, width, height, self.codebook_vector_dim)`
+            - Raw output from the encoder (logits) of shape:
+            `(batch, width, height, self.codebook_size)`
         """
         logits = self.encoder(x).permute((0, 2, 3, 1))
-        # (batch, width, height, self.codebook_size)
-        soft_one_hot = gumbel_softmax(logits, dim=-1, tau=self.temperature, hard=False)
+        if temperature is None:
+            temperature = self.temperature
 
-        return torch.matmul(
-            soft_one_hot.unsqueeze(-2),
-            self.codebook.weight
-        ).squeeze(-2)
+        # (batch, width, height, self.codebook_size)
+        soft_one_hot = gumbel_softmax(logits, dim=-1, tau=temperature, hard=hard)
+
+        x_encoded = torch.matmul(soft_one_hot.unsqueeze(-2), self.codebook.weight).squeeze(-2)
+        return x_encoded, logits
 
     def decode(self, z: torch.Tensor, *, from_indices: bool = False) -> torch.Tensor:
         """Reconstruct the input from latent variables.
@@ -107,6 +123,7 @@ class Conv2DEncoder(torch.nn.Module):
 
     Based on: https://github.com/lucidrains/DALLE-pytorch/blob/main/dalle_pytorch/dalle_pytorch.py
     """
+
     def __init__(
         self,
         *,
@@ -130,13 +147,13 @@ class Conv2DEncoder(torch.nn.Module):
             torch.nn.Conv2d(input_channels, hidden_size, kernel_size=1)
         ]
         for _ in range(num_layers):
+            layers_list.extend(
+                [ResidualBlock(hidden_size, hidden_size) for _ in range(num_resnet_blocks)]
+            )
             layers_list.append(
                 torch.nn.Conv2d(hidden_size, hidden_size, kernel_size=4, stride=2, padding=1)
             )
             layers_list.append(torch.nn.ReLU())
-            layers_list.extend(
-                [ResidualBlock(hidden_size, hidden_size) for _ in range(num_resnet_blocks)]
-            )
 
         layers_list.append(torch.nn.Conv2d(hidden_size, output_channels, kernel_size=1))
         self.layers = torch.nn.Sequential(*layers_list)
@@ -158,6 +175,7 @@ class Conv2DDecoder(torch.nn.Module):
 
     Based on: https://github.com/lucidrains/DALLE-pytorch/blob/main/dalle_pytorch/dalle_pytorch.py
     """
+
     def __init__(
         self,
         *,
@@ -178,20 +196,21 @@ class Conv2DDecoder(torch.nn.Module):
         """
         super().__init__()
         layers_list: list[torch.nn.Module] = [
-            torch.nn.ConvTranspose2d(input_channels, hidden_size, kernel_size=1)
+            torch.nn.Conv2d(input_channels, hidden_size, kernel_size=1)
         ]
         for _ in range(num_layers):
+            layers_list.extend(
+                [ResidualBlock(hidden_size, hidden_size) for _ in range(num_resnet_blocks)]
+            )
             layers_list.append(
                 torch.nn.ConvTranspose2d(
                     hidden_size, hidden_size, kernel_size=4, stride=2, padding=1
                 )
             )
             layers_list.append(torch.nn.ReLU())
-            layers_list.extend(
-                [ResidualBlock(hidden_size, hidden_size) for _ in range(num_resnet_blocks)]
-            )
 
-        layers_list.append(torch.nn.ConvTranspose2d(hidden_size, output_channels, kernel_size=1))
+        layers_list.append(torch.nn.Conv2d(hidden_size, output_channels, kernel_size=1))
+        layers_list.append(torch.nn.Sigmoid())
         self.layers = torch.nn.Sequential(*layers_list)
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:

@@ -9,6 +9,7 @@ class ResidualBlock(torch.nn.Module):
     where `x` is the input, `y` is the output, `norm` is a 2D batch norm and `conv` is
     a 2D convolution with kernel of size 3, stride 1 and padding 1.
     """
+
     def __init__(self, in_channels: int, out_channels: int):
         """Init the ResidualBlock.
 

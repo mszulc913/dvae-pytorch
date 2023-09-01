@@ -1,0 +1,28 @@
+# See dvae_pytorch/training/dvae/config.py for more information about
+# specific options.
+model:
+  codebook_size: 64
+  codebook_vector_dim: 64
+  channels: 3
+  encoder:
+    num_layers: 2
+    num_resnet_blocks: 2
+  decoder:
+    num_layers: 2
+    num_resnet_blocks: 2
+training:
+  learning_rate: 5e-4
+  learning_rate_scheduler_min: 1e-2
+  kl_div_weight_scheduler:
+    start: 0
+    end: 1e-4
+    warmup: 0.1
+    cooldown: 0.2
+  temperature_scheduler:
+    start: 0.9
+    end: 0.00625
+    warmup: 0
+    cooldown: 0.2
+  batch_size: 512
+  max_epochs: 50
+  gradient_clip_val: 0.5

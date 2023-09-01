@@ -1,5 +1,32 @@
 [project]
 requires-python = ">=3.9"
+dependencies = [
+    "torch",
+    "pydantic <2.0.0",
+    "torchvision",
+    "pytorch-lightning",
+    "matplotlib",
+    "tensorboard",
+    "pyyaml"
+]
+name = "dvae_pytorch"
+version = "0.1.0"
+
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "pytest",
+    "pytest-sugar",
+    "ruff ==0.0.265",
+    "mypy ==1.2.0",
+    "black ==23.3.0",
+    "tensorboardX",
+    "protobuf",
+    "pip-tools",
+    "types-PyYAML"
+]
+
 
 [tool.ruff]
 select = [
@@ -17,7 +44,12 @@ ignore = [
     "D100", # Missing docstring in public module
     "ANN101", # Missing type annotation for function argument 'self'
     "ANN204", # Missing return type annotation for special method
-    "TRY003", # Avoid specifying long messages outside the exception class
+    "TRY003", # Avoid specifying long messages outside the exception class,
+    "FBT001", # Boolean positional arg in function definition
+    "FBT002", # Boolean default value in function definition
+    "G004", # Logging statement uses f-string
+    "TRY400", # Use `logging.exception` instead of `logging.error`,
+    "PLR0913", # Too many arguments in function definition
 ]
 unfixable = []
 exclude = [
@@ -50,7 +82,12 @@ target-version = "py310"
 [tool.ruff.per-file-ignores]
 "tests/*" = [
     "D", # pydocstyle
-    "S101" # Use of `assert` detected
+    "S101", # Use of `assert` detected,
+    "PLR2004" # Magic value used in comparison
+]
+
+"dvae_pytorch/*" = [
+    "PT", # pytest
 ]
 
 [tool.ruff.mccabe]
@@ -58,3 +95,16 @@ max-complexity = 10
 
 [tool.ruff.pydocstyle]
 convention = "google"
+
+[tool.black]
+line-length = 100
+
+[tool.setuptools]
+py-modules = []
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["torchvision.*"]
+ignore_missing_imports = true
