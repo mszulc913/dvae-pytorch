@@ -14,7 +14,7 @@ from torchvision.datasets import CIFAR10
 
 from dvae_pytorch.datasets.wrappers import ClassificationDatasetWrapper
 from dvae_pytorch.models.dvae import DVAE, Conv2DDecoder, Conv2DEncoder
-from dvae_pytorch.training.callbacks import SaveVisualizationCallback
+from dvae_pytorch.training.callbacks import SaveValVisualizationCallback
 from dvae_pytorch.training.config import TrainingRunConfig
 from dvae_pytorch.training.lightning import DVAETrainModule
 
@@ -88,10 +88,11 @@ def _main() -> None:
             gradient_clip_val=config.training.gradient_clip_val,
             callbacks=[
                 LearningRateMonitor(logging_interval="step"),
-                SaveVisualizationCallback(
+                SaveValVisualizationCallback(
                     n_images=config.training.num_vis,
                     log_every_n_epochs=config.training.save_vis_every_n_epochs,
                     dataset=train_ds,
+                    logger=logger,
                 ),
             ],
         )
