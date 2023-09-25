@@ -15,7 +15,7 @@ If you want to install newer versions of the dependencies you can just run
 pip install ".[dev]"
 ```
 
-**Note**: If you want to use your GPU, make sure you have a compatible
+**Note**: If you want to use a GPU/TPU acceleration, make sure you have a compatible
 version of CUDA installed on your system.
 
 ## Run
@@ -30,7 +30,7 @@ tensorboard --logdir tb_logs
 ```
 
 ### Tests
-To run the test execute the following command:
+To run the tests execute the following command:
 ```shell
 python -m pytest
 ```
